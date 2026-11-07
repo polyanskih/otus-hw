@@ -80,3 +80,77 @@ func TestTop10(t *testing.T) {
 		}
 	})
 }
+
+func TestTop10Cases(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "single repeated word",
+			input:    "cat cat cat",
+			expected: []string{"cat"},
+		},
+		{
+			name:     "example from assignment",
+			input:    "cat and dog, one dog,two cats and one man",
+			expected: []string{"and", "one", "cat", "cats", "dog,", "dog,two", "man"},
+		},
+		{
+			name:     "frequency before lexical order",
+			input:    "a b b c c c",
+			expected: []string{"c", "b", "a"},
+		},
+		{
+			name:     "equal frequencies",
+			input:    "z b a z b a",
+			expected: []string{"a", "b", "z"},
+		},
+		{
+			name:     "exactly ten unique words",
+			input:    "j i h g f e d c b a",
+			expected: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
+		},
+		{
+			name:     "fifteen words tied at cutoff",
+			input:    "o n m l k j i h g f e d c b a",
+			expected: []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j"},
+		},
+		{
+			name:     "mixed frequencies at cutoff",
+			input:    "z z z y y x w v u t s r q p o n m l",
+			expected: []string{"z", "y", "l", "m", "n", "o", "p", "q", "r", "s"},
+		},
+		{
+			name:     "unicode whitespace",
+			input:    " \tcat\ncat\r\ndog\vbird\fcat\u00a0dog\u2003bird\u2028cat ",
+			expected: []string{"cat", "bird", "dog"},
+		},
+		{
+			name:     "unicode words",
+			input:    "кот кот 世 世 🙃 ёж ёж",
+			expected: []string{"кот", "ёж", "世", "🙃"},
+		},
+		{
+			name:     "case and punctuation are preserved",
+			input:    "Нога нога нога, - Нога нога!",
+			expected: []string{"Нога", "-", "нога", "нога!", "нога,"},
+		},
+		{
+			name:     "word forms remain distinct",
+			input:    "ногу ноги нога ноги",
+			expected: []string{"ноги", "нога", "ногу"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, Top10(tc.input))
+		})
+	}
+}
+
+func TestTop10WhitespaceOnly(t *testing.T) {
+	require.Empty(t, Top10(" \t\n\r\v\f\u00a0\u2003\u2028"))
+}
