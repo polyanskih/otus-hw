@@ -1,6 +1,7 @@
 package hw06pipelineexecution
 
 import (
+	"context"
 	"strconv"
 	"sync"
 	"testing"
@@ -145,6 +146,81 @@ func TestAllStageStop(t *testing.T) {
 		wg.Wait()
 
 		require.Len(t, result, 0)
-
 	})
+}
+
+func TestPipelineDrainsStageAfterCancel(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	in := make(Bi, 1)
+	in <- 1
+	close(in)
+	done := make(Bi)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	drained := make(chan struct{})
+	stage := func(in In) Out {
+		out := make(Bi)
+		go func() {
+			defer close(out)
+			value, ok := <-in
+			if !ok {
+				return
+			}
+			close(started)
+			select {
+			case <-release:
+			case <-ctx.Done():
+				return
+			}
+			select {
+			case out <- value:
+				close(drained)
+			case <-ctx.Done():
+			}
+		}()
+		return out
+	}
+
+	out := ExecutePipeline(in, done, stage)
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal("stage did not receive input")
+	}
+	close(done)
+	select {
+	case _, ok := <-out:
+		require.False(t, ok, "pipeline output must close on cancellation")
+	case <-ctx.Done():
+		t.Fatal("pipeline waited for the stage to finish before closing output")
+	}
+	close(release)
+	select {
+	case <-drained:
+	case <-ctx.Done():
+		t.Fatal("stage output was not drained after cancellation")
+	}
+}
+
+func TestPipelineWithoutStages(t *testing.T) {
+	in := make(Bi, 1)
+	in <- 42
+	done := make(Bi)
+	out := ExecutePipeline(in, done)
+
+	select {
+	case value := <-out:
+		require.Equal(t, 42, value)
+	case <-time.After(time.Second):
+		t.Fatal("input did not reach the pipeline output")
+	}
+	close(done)
+	select {
+	case _, ok := <-out:
+		require.False(t, ok, "pipeline output must close while input is open")
+	case <-time.After(time.Second):
+		t.Fatal("pipeline waited for input to close after cancellation")
+	}
 }
